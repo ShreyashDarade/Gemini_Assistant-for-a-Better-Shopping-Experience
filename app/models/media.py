@@ -3,25 +3,26 @@ Media model for visual aids, tutorials, and product media.
 """
 
 from datetime import datetime
-from enum import Enum
-from typing import List, Optional
+from enum import StrEnum
 
-from sqlalchemy import JSON, DateTime, Integer, String, Text, func, Index
+from sqlalchemy import JSON, DateTime, Index, Integer, String, Text, func
 from sqlalchemy.orm import Mapped, mapped_column
 
 from app.models.database import Base
 
 
-class MediaType(str, Enum):
+class MediaType(StrEnum):
     """Type of media content."""
+
     IMAGE = "image"
     VIDEO = "video"
     DOCUMENT = "document"
     AUDIO = "audio"
 
 
-class MediaCategory(str, Enum):
+class MediaCategory(StrEnum):
     """Category of media usage."""
+
     PRODUCT = "product"
     TUTORIAL = "tutorial"
     TROUBLESHOOT = "troubleshoot"
@@ -31,53 +32,46 @@ class MediaCategory(str, Enum):
 
 class Media(Base):
     """Media asset model."""
-    
+
     __tablename__ = "media"
-    
+
     id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
-    
+
     # Basic info
     title: Mapped[str] = mapped_column(String(255), nullable=False)
-    description: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
-    
+    description: Mapped[str | None] = mapped_column(Text, nullable=True)
+
     # Type and category
     type: Mapped[str] = mapped_column(String(20), nullable=False, index=True)
     category: Mapped[str] = mapped_column(String(50), nullable=False, index=True)
-    
+
     # URLs
     url: Mapped[str] = mapped_column(String(500), nullable=False)
-    thumbnail_url: Mapped[Optional[str]] = mapped_column(String(500), nullable=True)
-    
+    thumbnail_url: Mapped[str | None] = mapped_column(String(500), nullable=True)
+
     # Metadata
-    duration_seconds: Mapped[Optional[int]] = mapped_column(Integer, nullable=True)
-    file_size_bytes: Mapped[Optional[int]] = mapped_column(Integer, nullable=True)
-    mime_type: Mapped[Optional[str]] = mapped_column(String(100), nullable=True)
-    
+    duration_seconds: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    file_size_bytes: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    mime_type: Mapped[str | None] = mapped_column(String(100), nullable=True)
+
     # Associations
-    product_ids: Mapped[List[int]] = mapped_column(JSON, default=list)
-    tags: Mapped[List[str]] = mapped_column(JSON, default=list)
-    keywords: Mapped[List[str]] = mapped_column(JSON, default=list)
-    
+    product_ids: Mapped[list[int]] = mapped_column(JSON, default=list)
+    tags: Mapped[list[str]] = mapped_column(JSON, default=list)
+    keywords: Mapped[list[str]] = mapped_column(JSON, default=list)
+
     # For troubleshooting content
-    related_issues: Mapped[List[str]] = mapped_column(JSON, default=list)
-    
+    related_issues: Mapped[list[str]] = mapped_column(JSON, default=list)
+
     # Timestamps
     created_at: Mapped[datetime] = mapped_column(
-        DateTime(timezone=True),
-        server_default=func.now(),
-        nullable=False
+        DateTime(timezone=True), server_default=func.now(), nullable=False
     )
     updated_at: Mapped[datetime] = mapped_column(
-        DateTime(timezone=True),
-        server_default=func.now(),
-        onupdate=func.now(),
-        nullable=False
+        DateTime(timezone=True), server_default=func.now(), onupdate=func.now(), nullable=False
     )
-    
-    __table_args__ = (
-        Index("idx_media_type_category", "type", "category"),
-    )
-    
+
+    __table_args__ = (Index("idx_media_type_category", "type", "category"),)
+
     def to_dict(self) -> dict:
         """Convert to dictionary."""
         return {
@@ -97,7 +91,7 @@ class Media(Base):
             "related_issues": self.related_issues or [],
             "created_at": self.created_at.isoformat() if self.created_at else None,
         }
-    
+
     def to_summary(self) -> dict:
         """Convert to summary representation."""
         return {
