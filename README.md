@@ -2,8 +2,8 @@
 
 An AI-powered shopping assistant backend built with **FastAPI** and **Google Gemini AI**. This system understands natural language shopping queries, provides intelligent product recommendations, and delivers interactive responses with tutorials and troubleshooting guides.
 
-![Python](https://img.shields.io/badge/Python-3.11+-blue.svg)
-![FastAPI](https://img.shields.io/badge/FastAPI-0.109-green.svg)
+![Python](https://img.shields.io/badge/Python-3.13+-blue.svg)
+![FastAPI](https://img.shields.io/badge/FastAPI-0.142-green.svg)
 ![Gemini](https://img.shields.io/badge/Gemini-AI-orange.svg)
 ![License](https://img.shields.io/badge/License-MIT-yellow.svg)
 
@@ -416,6 +416,7 @@ The system comes with no sample data. To connect your products:
 from app.models.product import Product
 from app.models.database import get_db_context
 
+
 async def add_products():
     async with get_db_context() as db:
         product = Product(
@@ -425,7 +426,7 @@ async def add_products():
             brand="Brand",
             price=99.99,
             stock=100,
-            rating=4.5
+            rating=4.5,
         )
         db.add(product)
         await db.commit()
@@ -439,7 +440,7 @@ Edit `app/utils/seed_data.py`:
 async def seed_sample_data():
     # Fetch from your API
     products = await your_api.get_products()
-    
+
     # Convert to Product model format
     product_data = [
         {
@@ -449,11 +450,11 @@ async def seed_sample_data():
             "brand": p["brand"],
             "price": p["price"],
             "stock": p["inventory"],
-            "image_url": p["image"]
+            "image_url": p["image"],
         }
         for p in products
     ]
-    
+
     await seed_from_external_source(product_data)
 ```
 
@@ -540,3 +541,17 @@ This project is licensed under the MIT License - see the [LICENSE](LICENSE) file
 ---
 
 **Built with ❤️ for a better shopping experience**
+
+
+---
+
+## 🚀 Modern Tooling & Production Notes (v2)
+
+- **Stack**: Python 3.13, FastAPI 0.142, SQLAlchemy 2.1 (async), Pydantic 2.13, official `google-genai` SDK (native async, system instructions, JSON mode), managed with [uv](https://docs.astral.sh/uv/) (`pyproject.toml` + `uv.lock`).
+- **Run locally**: `uv sync && cp .env.example .env && uv run uvicorn app.main:app --reload`
+- **Quality**: `uv run ruff check . && uv run ruff format --check . && uv run pytest` (also run in CI).
+- **Docker**: `docker build -t shopping-assistant .` (multi-stage, non-root, healthcheck). `docker compose up` runs the API against Postgres 17 (set `POSTGRES_PASSWORD`).
+- **Observability**: structured JSON logs with `X-Request-ID` correlation, Prometheus metrics at `/metrics`, `/live`, `/ready` (503 when the DB is down) and `/health/detailed`.
+- **Resilience**: bounded Gemini concurrency, request timeout, retries with jittered backoff on transient errors only, per-IP rate limiting, graceful shutdown.
+- **No authentication** is built in by design; put the service behind your gateway/network controls and set `CORS_ORIGINS` to your real origins in production.
+- Default model is `gemini-2.5-flash` (GA); set `AI_MODEL` to use another.

@@ -5,7 +5,7 @@ Extracts structured data from user queries.
 
 import logging
 from dataclasses import dataclass, field
-from typing import Any, Dict, List, Optional
+from typing import Any
 
 from app.services.gemini_client import get_gemini_client
 from app.services.intent_classifier import IntentType
@@ -16,39 +16,39 @@ logger = logging.getLogger(__name__)
 @dataclass
 class ExtractedEntities:
     """Structured entities extracted from user query."""
-    
+
     # Product-related
-    product_names: List[str] = field(default_factory=list)
-    categories: List[str] = field(default_factory=list)
-    brands: List[str] = field(default_factory=list)
-    
+    product_names: list[str] = field(default_factory=list)
+    categories: list[str] = field(default_factory=list)
+    brands: list[str] = field(default_factory=list)
+
     # Price-related
-    min_price: Optional[float] = None
-    max_price: Optional[float] = None
+    min_price: float | None = None
+    max_price: float | None = None
     currency: str = "USD"
-    
+
     # Attributes
-    colors: List[str] = field(default_factory=list)
-    sizes: List[str] = field(default_factory=list)
-    features: List[str] = field(default_factory=list)
-    
+    colors: list[str] = field(default_factory=list)
+    sizes: list[str] = field(default_factory=list)
+    features: list[str] = field(default_factory=list)
+
     # Quantity
-    quantity: Optional[int] = None
-    
+    quantity: int | None = None
+
     # User preferences
-    sort_preference: Optional[str] = None  # price_asc, price_desc, rating, newest
-    
+    sort_preference: str | None = None  # price_asc, price_desc, rating, newest
+
     # For comparisons
-    comparison_items: List[str] = field(default_factory=list)
-    
+    comparison_items: list[str] = field(default_factory=list)
+
     # For troubleshooting
-    issue_description: Optional[str] = None
-    product_model: Optional[str] = None
-    
+    issue_description: str | None = None
+    product_model: str | None = None
+
     # Raw attributes for flexibility
-    raw_attributes: Dict[str, Any] = field(default_factory=dict)
-    
-    def to_dict(self) -> Dict[str, Any]:
+    raw_attributes: dict[str, Any] = field(default_factory=dict)
+
+    def to_dict(self) -> dict[str, Any]:
         """Convert to dictionary."""
         return {
             "product_names": self.product_names,
@@ -67,16 +67,16 @@ class ExtractedEntities:
             "product_model": self.product_model,
             "raw_attributes": self.raw_attributes,
         }
-    
+
     def has_search_filters(self) -> bool:
         """Check if any search filters are present."""
         return bool(
-            self.product_names or
-            self.categories or
-            self.brands or
-            self.min_price is not None or
-            self.max_price is not None or
-            self.features
+            self.product_names
+            or self.categories
+            or self.brands
+            or self.min_price is not None
+            or self.max_price is not None
+            or self.features
         )
 
 
@@ -84,7 +84,7 @@ class EntityExtractor:
     """
     Extracts structured entities from shopping queries using Gemini AI.
     """
-    
+
     SYSTEM_INSTRUCTION = """You are an entity extractor for a shopping assistant.
 Extract structured information from user queries about products, prices, features, and preferences.
 Be precise and only extract what is explicitly mentioned or clearly implied."""
@@ -117,27 +117,24 @@ Only include fields with actual values. Use null for missing values."""
 
     def __init__(self):
         self._client = None
-    
+
     async def _get_client(self):
         """Lazy load Gemini client."""
         if self._client is None:
             self._client = await get_gemini_client()
         return self._client
-    
+
     async def extract(
-        self,
-        query: str,
-        intent: IntentType,
-        context: Optional[Dict[str, Any]] = None
+        self, query: str, intent: IntentType, context: dict[str, Any] | None = None
     ) -> ExtractedEntities:
         """
         Extract structured entities from user query.
-        
+
         Args:
             query: User's query text
             intent: Classified intent type
             context: Conversation context
-        
+
         Returns:
             ExtractedEntities with all extracted information
         """
@@ -148,28 +145,25 @@ Only include fields with actual values. Use null for missing values."""
                 context_section = f"\nUser preferences: {context.get('preferences')}"
             if context.get("previous_products"):
                 context_section += f"\nPreviously discussed: {context.get('previous_products')}"
-        
+
         prompt = self.EXTRACTION_PROMPT.format(
-            query=query,
-            intent=intent.value,
-            context_section=context_section
+            query=query, intent=intent.value, context_section=context_section
         )
-        
+
         try:
             client = await self._get_client()
             response = await client.generate_json(
-                prompt=prompt,
-                system_instruction=self.SYSTEM_INSTRUCTION
+                prompt=prompt, system_instruction=self.SYSTEM_INSTRUCTION
             )
-            
+
             return self._parse_response(response)
-            
+
         except Exception as e:
             logger.error(f"Entity extraction failed: {e}")
             # Return basic extraction from keywords
             return self._fallback_extract(query, intent)
-    
-    def _parse_response(self, response: Dict[str, Any]) -> ExtractedEntities:
+
+    def _parse_response(self, response: dict[str, Any]) -> ExtractedEntities:
         """Parse JSON response into ExtractedEntities."""
         return ExtractedEntities(
             product_names=response.get("product_names", []) or [],
@@ -188,31 +182,37 @@ Only include fields with actual values. Use null for missing values."""
             product_model=response.get("product_model"),
             raw_attributes=response,
         )
-    
+
     def _fallback_extract(self, query: str, intent: IntentType) -> ExtractedEntities:
         """Basic keyword-based entity extraction as fallback."""
         entities = ExtractedEntities()
         query_lower = query.lower()
-        
+
         # Extract price ranges
         import re
-        
+
         # Pattern: under/below $X
-        under_match = re.search(r'(?:under|below|less than)\s*\$?(\d+(?:,\d{3})*(?:\.\d{2})?)', query_lower)
+        under_match = re.search(
+            r"(?:under|below|less than)\s*\$?(\d+(?:,\d{3})*(?:\.\d{2})?)", query_lower
+        )
         if under_match:
-            entities.max_price = float(under_match.group(1).replace(',', ''))
-        
+            entities.max_price = float(under_match.group(1).replace(",", ""))
+
         # Pattern: over/above $X
-        over_match = re.search(r'(?:over|above|more than)\s*\$?(\d+(?:,\d{3})*(?:\.\d{2})?)', query_lower)
+        over_match = re.search(
+            r"(?:over|above|more than)\s*\$?(\d+(?:,\d{3})*(?:\.\d{2})?)", query_lower
+        )
         if over_match:
-            entities.min_price = float(over_match.group(1).replace(',', ''))
-        
+            entities.min_price = float(over_match.group(1).replace(",", ""))
+
         # Pattern: $X - $Y or $X to $Y
-        range_match = re.search(r'\$?(\d+(?:,\d{3})*)\s*(?:-|to)\s*\$?(\d+(?:,\d{3})*)', query_lower)
+        range_match = re.search(
+            r"\$?(\d+(?:,\d{3})*)\s*(?:-|to)\s*\$?(\d+(?:,\d{3})*)", query_lower
+        )
         if range_match:
-            entities.min_price = float(range_match.group(1).replace(',', ''))
-            entities.max_price = float(range_match.group(2).replace(',', ''))
-        
+            entities.min_price = float(range_match.group(1).replace(",", ""))
+            entities.max_price = float(range_match.group(2).replace(",", ""))
+
         # Common categories
         categories = {
             "laptop": ["laptop", "laptops", "notebook", "macbook"],
@@ -223,28 +223,39 @@ Only include fields with actual values. Use null for missing values."""
             "clothing": ["shirt", "pants", "dress", "jacket", "coat"],
             "electronics": ["tv", "television", "camera", "speaker"],
         }
-        
+
         for category, keywords in categories.items():
             if any(kw in query_lower for kw in keywords):
                 entities.categories.append(category)
-        
+
         # Common brands
-        brands = ["apple", "samsung", "google", "sony", "nike", "adidas", "microsoft", "dell", "hp", "lenovo"]
+        brands = [
+            "apple",
+            "samsung",
+            "google",
+            "sony",
+            "nike",
+            "adidas",
+            "microsoft",
+            "dell",
+            "hp",
+            "lenovo",
+        ]
         for brand in brands:
             if brand in query_lower:
                 entities.brands.append(brand.title())
-        
+
         # Colors
         colors = ["red", "blue", "green", "black", "white", "silver", "gold", "pink", "purple"]
         for color in colors:
             if color in query_lower:
                 entities.colors.append(color)
-        
+
         return entities
 
 
 # Singleton instance
-_extractor: Optional[EntityExtractor] = None
+_extractor: EntityExtractor | None = None
 
 
 async def get_entity_extractor() -> EntityExtractor:

@@ -1,0 +1,25 @@
+services:
+  postgres:
+    image: postgres:17-alpine
+    environment:
+      POSTGRES_USER: shop
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?set POSTGRES_PASSWORD}
+      POSTGRES_DB: shop
+    volumes: [pgdata:/var/lib/postgresql/data]
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U shop"]
+      interval: 5s
+      retries: 10
+
+  api:
+    build: .
+    env_file: .env
+    environment:
+      DATABASE_URL: postgresql+asyncpg://shop:${POSTGRES_PASSWORD}@postgres:5432/shop
+    ports: ["8000:8000"]
+    depends_on:
+      postgres: { condition: service_healthy }
+    restart: unless-stopped
+
+volumes:
+  pgdata:
